@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+
+data/raw/*
+data/processed/*
+data/indexes/*
+data/app.db
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/indexes/.gitkeep
+
+.streamlit/
+*.egg-info/
+
+.claude/
