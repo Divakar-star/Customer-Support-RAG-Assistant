@@ -67,6 +67,31 @@ class SessionKnowledgeStore:
         with self._lock:
             return self._chunks.get(chunk_id)
 
+    def total_chunks(self) -> int:
+        with self._lock:
+            return len(self._chunk_ids)
+
+    def get_ordered_chunks(self, limit: int) -> list[dict]:
+        """Chunks in upload order, unranked - used when a similarity score isn't
+        meaningful: a vague question ("summarize this") or a document small
+        enough to just hand over in full.
+        """
+        with self._lock:
+            results = []
+            for chunk_id in self._chunk_ids[:limit]:
+                meta = self._chunks[chunk_id]
+                results.append(
+                    {
+                        "chunk_id": chunk_id,
+                        "score": 1.0,
+                        "text": meta["text"],
+                        "source": meta["source"],
+                        "page": meta["page"],
+                        "section": meta.get("section"),
+                    }
+                )
+            return results
+
     def list_documents(self) -> list[dict]:
         with self._lock:
             return list(self._documents.values())

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 
     vector_top_k: int = 10
     context_max_chunks: int = 5
-    retrieval_threshold: float = 0.35
+    retrieval_threshold: float = 0.2
 
     chunk_size_tokens: int = 550
     chunk_overlap_tokens: int = 80

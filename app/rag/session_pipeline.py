@@ -7,7 +7,59 @@ from app.rag.context_builder import build_context
 from app.rag.generator import get_llm_client
 from app.rag.prompts import SESSION_SYSTEM_PROMPT, build_user_message
 from app.retrieval.session_search import session_vector_search
-from app.storage.session_store import get_or_create_session
+from app.storage.session_store import SessionKnowledgeStore, get_or_create_session
+
+_SUMMARY_INTENT_PHRASES = (
+    "summary",
+    "summarize",
+    "summarise",
+    "overview",
+    "explain this document",
+    "explain the document",
+    "explain this file",
+    "explain the file",
+    "what is this document about",
+    "what is this file about",
+    "what's this document about",
+    "what's this file about",
+    "tell me about this document",
+    "tell me about this file",
+    "tell me about the document",
+    "tell me about the file",
+    "about this document",
+    "about the file",
+    "about this file",
+)
+
+
+def _is_summary_intent(question: str) -> bool:
+    q = question.lower()
+    return any(phrase in q for phrase in _SUMMARY_INTENT_PHRASES)
+
+
+def _select_context(
+    session_id: str, store: SessionKnowledgeStore, question: str, settings
+) -> list[dict] | None:
+    """Picks which chunks to answer from. Returns None if nothing qualifies
+    (caller should refuse).
+
+    A pure similarity score doesn't mean much for a vague question ("summarize
+    this") or a document that's small enough to hand over in full anyway - in
+    both cases we skip the score gate and just use the document's own chunk
+    order instead of ranking by relevance.
+    """
+    total_chunks = store.total_chunks()
+
+    if total_chunks <= settings.context_max_chunks:
+        return store.get_ordered_chunks(total_chunks)
+
+    if _is_summary_intent(question):
+        return store.get_ordered_chunks(settings.context_max_chunks)
+
+    results = session_vector_search(session_id, question)
+    if not results or results[0]["score"] < settings.retrieval_threshold:
+        return None
+    return results
 
 
 def answer_session_question(
@@ -21,9 +73,8 @@ def answer_session_question(
     if not store.has_documents():
         return _refusal(NO_SESSION_DOCS, conversation_id)
 
-    results = session_vector_search(session_id, question)
-
-    if not results or results[0]["score"] < settings.retrieval_threshold:
+    results = _select_context(session_id, store, question, settings)
+    if results is None:
         return _refusal(SESSION_UNSUPPORTED_ANSWER, conversation_id)
 
     context_text, labeled_sources = build_context(results)
